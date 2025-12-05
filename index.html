@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VENIOS | Cloud ERP</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Supabase JS (La magia de la nube) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Montserrat', 'sans-serif'] },
+                    colors: {
+                        venios: {
+                            gold: '#D4AF37',
+                            goldHover: '#F4CF57',
+                            black: '#050505',
+                            dark: '#121212',
+                            panel: '#1A1A1A',
+                            input: '#252525',
+                            danger: '#ef4444'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { background-color: #050505; color: #e5e5e5; overflow: hidden; }
+        
+        /* Scrollbar Premium */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #050505; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #D4AF37; }
+
+        /* Inputs & Tables */
+        .v-input {
+            background-color: #252525;
+            border: 1px solid #333;
+            color: white;
+            transition: all 0.3s;
+        }
+        .v-input:focus {
+            border-color: #D4AF37;
+            box-shadow: 0 0 10px rgba(212, 175, 55, 0.2);
+            outline: none;
+        }
+        
+        /* Animaciones */
+        .fade-in { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .glass-modal { background: rgba(0, 0, 0, 0.95); backdrop-filter: blur(10px); }
+        
+        /* Badges */
+        .badge-low { background: #450a0a; color: #f87171; border: 1px solid #7f1d1d; }
+        .badge-ok { background: #052e16; color: #4ade80; border: 1px solid #14532d; }
+
+        /* Loader */
+        .loader { border: 4px solid #333; border-top: 4px solid #D4AF37; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="flex h-screen text-sm select-none relative">
+
+    <!-- PANTALLA DE LOGIN (Se muestra si no hay sesión) -->
+    <div id="auth-screen" class="fixed inset-0 z-[100] bg-black flex items-center justify-center p-4">
+        <div class="w-full max-w-md bg-venios-panel p-8 rounded-2xl border border-venios-gold shadow-2xl shadow-yellow-900/20 text-center">
+            <h1 class="text-4xl font-black text-venios-gold tracking-[0.2em] mb-2">VENIOS</h1>
+            <p class="text-gray-500 uppercase text-xs tracking-widest mb-8">Cloud System Access</p>
+            
+            <form id="auth-form" class="space-y-4 text-left">
+                <div>
+                    <label class="text-xs font-bold text-gray-400 ml-1">CORREO ELECTRÓNICO</label>
+                    <input type="email" id="auth-email" class="v-input w-full p-4 rounded-lg mt-1" placeholder="admin@venios.com" required>
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-gray-400 ml-1">CONTRASEÑA</label>
+                    <input type="password" id="auth-pass" class="v-input w-full p-4 rounded-lg mt-1" placeholder="••••••••" required>
+                </div>
+                
+                <div id="auth-error" class="text-red-500 text-xs font-bold text-center h-4"></div>
+
+                <div class="grid grid-cols-2 gap-4 pt-2">
+                    <button type="button" onclick="Cloud.login()" class="bg-venios-gold text-black font-black py-3 rounded hover:bg-white transition uppercase tracking-wider">ENTRAR</button>
+                    <button type="button" onclick="Cloud.register()" class="bg-transparent border border-gray-600 text-gray-300 font-bold py-3 rounded hover:border-venios-gold hover:text-venios-gold transition uppercase tracking-wider">REGISTRARSE</button>
+                </div>
+            </form>
+            <p class="mt-6 text-[10px] text-gray-600">Secure Connection via Supabase</p>
+        </div>
+    </div>
+
+    <!-- LOADER -->
+    <div id="app-loader" class="fixed inset-0 z-[90] bg-black flex items-center justify-center hidden">
+        <div class="loader"></div>
+    </div>
+
+    <!-- SIDEBAR -->
+    <aside id="sidebar" class="w-72 bg-venios-panel flex-shrink-0 flex flex-col border-r border-gray-800 z-50 transition-transform duration-300 absolute md:relative transform -translate-x-full md:translate-x-0 h-full shadow-2xl hidden md:flex">
+        <div class="h-24 flex flex-col items-center justify-center border-b border-gray-800 bg-black">
+            <h1 class="text-3xl font-black text-venios-gold tracking-[0.2em]">VENIOS</h1>
+            <p class="text-[9px] text-gray-500 uppercase tracking-widest mt-1">Cloud Edition</p>
+        </div>
+
+        <nav class="flex-1 overflow-y-auto py-6 space-y-2 px-4">
+            <p class="text-[10px] font-bold text-gray-600 uppercase px-3 mb-2 tracking-wider">Gestión Principal</p>
+            <button onclick="app.nav('dashboard')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-venios-input hover:text-venios-gold transition-all group text-gray-400">
+                <i class="fas fa-chart-pie w-8 text-lg group-hover:scale-110 transition"></i>
+                <span class="font-bold">Dashboard</span>
+            </button>
+            <button onclick="app.nav('inventory')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-venios-input hover:text-venios-gold transition-all group text-gray-400">
+                <i class="fas fa-tshirt w-8 text-lg group-hover:scale-110 transition"></i>
+                <span class="font-bold">Inventario</span>
+            </button>
+            <button onclick="app.nav('finances')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-venios-input hover:text-venios-gold transition-all group text-gray-400">
+                <i class="fas fa-wallet w-8 text-lg group-hover:scale-110 transition"></i>
+                <span class="font-bold">Finanzas</span>
+            </button>
+            
+            <p class="text-[10px] font-bold text-gray-600 uppercase px-3 mb-2 mt-6 tracking-wider">Administración</p>
+            <button onclick="app.nav('hr')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-venios-input hover:text-venios-gold transition-all group text-gray-400">
+                <i class="fas fa-users w-8 text-lg group-hover:scale-110 transition"></i>
+                <span class="font-medium">Recursos Humanos</span>
+            </button>
+            <button onclick="app.nav('payroll')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-venios-input hover:text-venios-gold transition-all group text-gray-400">
+                <i class="fas fa-money-check-dollar w-8 text-lg group-hover:scale-110 transition"></i>
+                <span class="font-medium">Nómina</span>
+            </button>
+            <button onclick="app.nav('invoices')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-venios-input hover:text-venios-gold transition-all group text-gray-400">
+                <i class="fas fa-file-invoice w-8 text-lg group-hover:scale-110 transition"></i>
+                <span class="font-medium">Facturación</span>
+            </button>
+        </nav>
+
+        <div class="p-4 bg-black border-t border-gray-800">
+            <div class="flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-venios-gold flex items-center justify-center text-black font-bold shadow-lg shadow-yellow-900/20">U</div>
+                    <div>
+                        <p class="text-white font-bold text-xs" id="user-email-display">Usuario</p>
+                        <p class="text-[10px] text-green-500">● Conectado</p>
+                    </div>
+                </div>
+                <button onclick="Cloud.logout()" class="text-gray-500 hover:text-red-500 transition"><i class="fas fa-sign-out-alt"></i></button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main id="main-interface" class="flex-1 flex flex-col h-full bg-venios-dark relative w-full hidden">
+        <!-- HEADER -->
+        <header class="h-16 bg-venios-panel border-b border-gray-800 flex items-center justify-between px-6 shadow-xl z-20">
+            <div class="flex items-center gap-4">
+                <button onclick="app.toggleSidebar()" class="md:hidden text-white"><i class="fas fa-bars text-xl"></i></button>
+                <h2 id="page-title" class="text-lg font-black text-white uppercase tracking-wider hidden sm:block">Dashboard</h2>
+            </div>
+
+            <!-- Currency Control -->
+            <div class="flex items-center gap-3 bg-black px-4 py-2 rounded-full border border-gray-800">
+                <div class="flex items-center gap-2 border-r border-gray-700 pr-3">
+                    <span class="text-gray-500 text-[10px] uppercase font-bold">Tasa BCV:</span>
+                    <span class="text-venios-gold font-bold">Bs.</span>
+                    <input type="number" id="exchange-rate-input" onchange="app.updateRate(this.value)" class="bg-transparent text-white w-14 font-bold outline-none text-right text-sm" step="0.1">
+                </div>
+                <button onclick="app.toggleCurrency()" id="currency-toggle-btn" class="text-[10px] font-bold px-3 py-1 rounded bg-venios-gold text-black hover:bg-white transition uppercase tracking-wide">
+                    Ver en Bs
+                </button>
+            </div>
+
+            <div class="flex items-center gap-4">
+                 <button onclick="app.sync()" title="Sincronizar Cloud" class="text-venios-gold hover:text-white transition animate-pulse"><i class="fas fa-cloud-upload-alt"></i></button>
+            </div>
+        </header>
+
+        <!-- DYNAMIC CONTENT -->
+        <div id="content-area" class="flex-1 overflow-auto p-6 relative custom-scroll">
+            <!-- Vistas se cargan aquí -->
+        </div>
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-venios-panel border-l-4 border-venios-gold text-white px-6 py-4 rounded shadow-2xl transform translate-y-20 opacity-0 transition-all duration-300 z-50 flex items-center gap-3">
+        <i class="fas fa-check-circle text-venios-gold text-xl"></i>
+        <div>
+            <h4 class="font-bold text-sm">Notificación</h4>
+            <span id="toast-msg" class="text-xs text-gray-400">Mensaje</span>
+        </div>
+    </div>
+
+    <script>
+        // ----------------------------------------------------
+        // CONFIGURACIÓN DE SUPABASE (TU NUBE)
+        // ----------------------------------------------------
+        // 1. Crea cuenta en supabase.com
+        // 2. Crea proyecto "Venios"
+        // 3. Pega aquí tu URL y tu ANON KEY (Settings -> API)
+        
+        const SUPABASE_URL = 'https://bfzhgrthxyoxasokzstv.supabase.co'; // Ej: https://xyz.supabase.co
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmemhncnRoeHlveGFzb2t6c3R2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ4ODg2MTksImV4cCI6MjA4MDQ2NDYxOX0.KUrLzEfHhttlymyt0A8yyZZfyW1DT-jthmyCrkETCDU'; // Ej: eyJhbGc...
+        
+        // Inicializar cliente
+        let supabase = null;
+        try {
+            if(SUPABASE_URL.includes('AQUI_TU')) {
+                console.warn("Falta configurar Supabase");
+            } else {
+                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            }
+        } catch(e) { console.error("Error iniciando Supabase", e); }
+
+
+        // --- CLOUD MANAGER ---
+        const Cloud = {
+            user: null,
+
+            // Login
+            login: async () => {
+                if(!supabase) return alert("Configura las llaves de Supabase en el código primero.");
+                
+                const email = document.getElementById('auth-email').value;
+                const password = document.getElementById('auth-pass').value;
+                const errorDiv = document.getElementById('auth-error');
+                
+                errorDiv.innerText = "Conectando...";
+                
+                const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+                if (error) {
+                    errorDiv.innerText = "Error: " + error.message;
+                    AudioSys.play('error');
+                } else {
+                    Cloud.user = data.user;
+                    Cloud.initApp();
+                }
+            },
+
+            // Registro
+            register: async () => {
+                if(!supabase) return alert("Configura las llaves de Supabase en el código primero.");
+
+                const email = document.getElementById('auth-email').value;
+                const password = document.getElementById('auth-pass').value;
+                const errorDiv = document.getElementById('auth-error');
+
+                if(password.length < 6) return errorDiv.innerText = "La contraseña debe tener 6+ caracteres";
+                
+                errorDiv.innerText = "Creando cuenta...";
+
+                const { data, error } = await supabase.auth.signUp({ email, password });
+
+                if (error) {
+                    errorDiv.innerText = error.message;
+                } else {
+                    alert("Cuenta creada. ¡Revisa tu correo para confirmar!");
+                }
+            },
+
+            // Salir
+            logout: async () => {
+                await supabase.auth.signOut();
+                location.reload();
+            },
+
+            // Cargar datos de la nube
+            loadData: async () => {
+                if(!Cloud.user) return null;
+                
+                // Buscar datos en la tabla 'user_data'
+                const { data, error } = await supabase
+                    .from('user_data')
+                    .select('content')
+                    .eq('user_id', Cloud.user.id)
+                    .single();
+
+                if (error && error.code !== 'PGRST116') { // PGRST116 es "no found", que es normal si es nuevo
+                    console.error("Error cargando:", error);
+                }
+
+                if (data && data.content) {
+                    return data.content; // Retorna el objeto JSON guardado
+                }
+                return null; // Usuario nuevo
+            },
+
+            // Guardar datos en la nube
+            saveData: async (appData) => {
+                if(!Cloud.user) return;
+                
+                const { error } = await supabase
+                    .from('user_data')
+                    .upsert({ user_id: Cloud.user.id, content: appData });
+
+                if (error) console.error("Error guardando en nube:", error);
+            },
+
+            // Iniciar aplicación tras login exitoso
+            initApp: async () => {
+                document.getElementById('auth-screen').classList.add('hidden');
+                document.getElementById('app-loader').classList.remove('hidden');
+                
+                // Cargar datos reales
+                const cloudData = await Cloud.loadData();
+                
+                // Iniciar App con datos nube o iniciales
+                app.data = cloudData || DB.getInitialData();
+                
+                // Actualizar UI
+                document.getElementById('user-email-display').innerText = Cloud.user.email;
+                document.getElementById('app-loader').classList.add('hidden');
+                document.getElementById('sidebar').classList.remove('hidden'); // Mostrar sidebar en desktop
+                document.getElementById('sidebar').classList.add('flex'); // Asegurar flex
+                document.getElementById('main-interface').classList.remove('hidden');
+                
+                app.startUI();
+            }
+        };
+
+
+        // --- AUDIO ENGINE (Original) ---
+        const AudioSys = {
+            ctx: new (window.AudioContext || window.webkitAudioContext)(),
+            play: (type) => {
+                if (AudioSys.ctx.state === 'suspended') AudioSys.ctx.resume();
+                const osc = AudioSys.ctx.createOscillator();
+                const gain = AudioSys.ctx.createGain();
+                osc.connect(gain);
+                gain.connect(AudioSys.ctx.destination);
+                const now = AudioSys.ctx.currentTime;
+                
+                if (type === 'click') {
+                    osc.type = 'sine'; osc.frequency.setValueAtTime(400, now);
+                    gain.gain.setValueAtTime(0.05, now); gain.gain.linearRampToValueAtTime(0, now + 0.05);
+                    osc.start(now); osc.stop(now + 0.05);
+                } else if (type === 'cash') { 
+                    osc.type = 'square'; osc.frequency.setValueAtTime(800, now); osc.frequency.setValueAtTime(1200, now + 0.1);
+                    gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.4);
+                    osc.start(now); osc.stop(now + 0.4);
+                } else if (type === 'error') {
+                    osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now);
+                    gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.3);
+                    osc.start(now); osc.stop(now + 0.3);
+                }
+            }
+        };
+
+        // --- DATABASE LOCAL (Adaptada) ---
+        const DB = {
+            getInitialData: () => {
+                return {
+                    settings: { rate: 38.5, currencyView: 'USD' },
+                    transactions: [], 
+                    employees: [], 
+                    inventory: [] 
+                };
+            },
+            save: (data) => {
+                app.data = data;
+                // Guardamos en la nube cada vez que hay un cambio
+                Cloud.saveData(data);
+            }
+        };
+
+        // --- CORE APP ---
+        const app = {
+            data: null,
+            chartInstance: null,
+
+            // Punto de entrada modificado para Auth
+            init: async () => {
+                // Verificar si hay sesión activa al recargar
+                if(supabase) {
+                    const { data } = await supabase.auth.getSession();
+                    if(data.session) {
+                        Cloud.user = data.session.user;
+                        Cloud.initApp();
+                    }
+                }
+                
+                document.addEventListener('click', (e) => {
+                    if(e.target.tagName === 'BUTTON' || e.target.closest('button')) AudioSys.play('click');
+                });
+            },
+
+            // Iniciar UI (Se llama después del login)
+            startUI: () => {
+                document.getElementById('exchange-rate-input').value = app.data.settings.rate;
+                app.updateCurrencyBtn();
+                app.nav('dashboard');
+            },
+            
+            sync: () => {
+                Cloud.saveData(app.data);
+                app.toast("Sincronizado con la nube");
+            },
+
+            // --- NAVEGACIÓN ---
+            nav: (view) => {
+                app.currentView = view;
+                const area = document.getElementById('content-area');
+                area.innerHTML = '';
+                area.classList.remove('fade-in');
+                void area.offsetWidth; 
+                area.classList.add('fade-in');
+                document.getElementById('page-title').innerText = view.toUpperCase();
+                
+                if(window.innerWidth < 768) document.getElementById('sidebar').classList.add('-translate-x-full');
+
+                switch(view) {
+                    case 'dashboard': app.views.dashboard(area); break;
+                    case 'finances': app.views.finances(area); break;
+                    case 'inventory': app.views.inventory(area); break;
+                    case 'hr': app.views.hr(area); break;
+                    case 'payroll': app.views.payroll(area); break;
+                    case 'invoices': app.views.invoices(area); break;
+                }
+            },
+
+            // --- UTILIDADES ---
+            formatMoney: (amountInUSD) => {
+                if (app.data.settings.currencyView === 'VES') {
+                    const amountVES = amountInUSD * app.data.settings.rate;
+                    return `Bs. ${amountVES.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                }
+                return `$${amountInUSD.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            },
+
+            updateRate: (val) => {
+                app.data.settings.rate = parseFloat(val);
+                DB.save(app.data);
+                app.toast(`Tasa actualizada: Bs. ${val}`);
+                app.nav(app.currentView);
+            },
+
+            toggleCurrency: () => {
+                app.data.settings.currencyView = app.data.settings.currencyView === 'USD' ? 'VES' : 'USD';
+                DB.save(app.data);
+                app.updateCurrencyBtn();
+                app.nav(app.currentView);
+            },
+
+            updateCurrencyBtn: () => {
+                const btn = document.getElementById('currency-toggle-btn');
+                btn.innerText = app.data.settings.currencyView === 'USD' ? 'VER EN BS' : 'VER EN USD';
+            },
+
+            toast: (msg) => {
+                const t = document.getElementById('toast');
+                document.getElementById('toast-msg').innerText = msg;
+                t.classList.remove('translate-y-20', 'opacity-0');
+                setTimeout(() => t.classList.add('translate-y-20', 'opacity-0'), 3000);
+            },
+
+            toggleSidebar: () => document.getElementById('sidebar').classList.toggle('-translate-x-full'),
+
+            // --- VISTAS ---
+            views: {
+                dashboard: (container) => {
+                    const income = app.data.transactions.filter(t => t.type === 'in').reduce((acc, t) => acc + t.amount, 0);
+                    const expense = app.data.transactions.filter(t => t.type === 'out').reduce((acc, t) => acc + t.amount, 0);
+                    const balance = income - expense;
+                    const stockValue = app.data.inventory.reduce((acc, i) => acc + (i.price * i.stock), 0);
+
+                    container.innerHTML = `
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                            <div class="bg-venios-panel p-6 rounded-2xl border border-gray-800 relative group hover:border-venios-gold transition">
+                                <p class="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-1">Balance Neto</p>
+                                <h2 class="text-3xl font-black text-white">${app.formatMoney(balance)}</h2>
+                                <i class="fas fa-scale-balanced absolute top-6 right-6 text-gray-800 text-4xl group-hover:text-venios-gold transition"></i>
+                            </div>
+                            <div class="bg-venios-panel p-6 rounded-2xl border border-gray-800">
+                                <p class="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-1">Valor Stock (Venta)</p>
+                                <h2 class="text-3xl font-black text-blue-400">${app.formatMoney(stockValue)}</h2>
+                            </div>
+                            <div class="bg-venios-panel p-6 rounded-2xl border border-gray-800">
+                                <p class="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-1">Ingresos</p>
+                                <h2 class="text-3xl font-black text-green-400">${app.formatMoney(income)}</h2>
+                            </div>
+                            <div class="bg-venios-panel p-6 rounded-2xl border border-gray-800">
+                                <p class="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-1">Gastos</p>
+                                <h2 class="text-3xl font-black text-red-400">${app.formatMoney(expense)}</h2>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 h-96">
+                            <div class="lg:col-span-2 bg-venios-panel p-5 rounded-2xl border border-gray-800 flex flex-col">
+                                <h3 class="text-venios-gold font-bold mb-4">Análisis Financiero</h3>
+                                <div class="flex-1 relative">
+                                    <canvas id="financeChart"></canvas>
+                                </div>
+                            </div>
+                            <div class="bg-venios-panel p-5 rounded-2xl border border-gray-800 overflow-y-auto">
+                                <h3 class="text-venios-gold font-bold mb-4">Movimientos Recientes</h3>
+                                <div class="space-y-3">
+                                    ${app.data.transactions.slice().reverse().slice(0, 6).map(t => `
+                                       <div class="flex justify-between items-center p-2 border-b border-gray-800 pb-2">
+                                           <div>
+                                               <p class="text-white font-bold text-xs">${t.desc}</p>
+                                               <p class="text-[10px] text-gray-500">${t.date}</p>
+                                           </div>
+                                           <span class="${t.type === 'in' ? 'text-green-400' : 'text-red-400'} font-mono font-bold text-sm">
+                                               ${t.type === 'in' ? '+' : '-'}${app.formatMoney(t.amount)}
+                                           </span>
+                                       </div>
+                                   `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    setTimeout(() => {
+                        const ctx = document.getElementById('financeChart').getContext('2d');
+                        new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: ['Inicio', 'Actualidad'],
+                                datasets: [
+                                    { label: 'Ingresos', data: [0, income], borderColor: '#4ade80', tension: 0.4 },
+                                    { label: 'Gastos', data: [0, expense], borderColor: '#f87171', tension: 0.4 }
+                                ]
+                            },
+                            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { y: { grid: { color: '#333' } }, x: { display: false } } }
+                        });
+                    }, 100);
+                },
+
+                // --- VISTA INVENTARIO (NUEVA) ---
+                inventory: (container) => {
+                    const totalCost = app.data.inventory.reduce((acc, i) => acc + (i.cost * i.stock), 0);
+                    const potentialSales = app.data.inventory.reduce((acc, i) => acc + (i.price * i.stock), 0);
+                    
+                    container.innerHTML = `
+                        <div class="flex flex-col h-full">
+                            <!-- Top Stats Inventory -->
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                <div class="bg-venios-panel p-4 rounded-xl border border-gray-800">
+                                    <p class="text-gray-500 text-[10px] uppercase">Items Distintos</p>
+                                    <h3 class="text-xl font-bold text-white">${app.data.inventory.length}</h3>
+                                </div>
+                                <div class="bg-venios-panel p-4 rounded-xl border border-gray-800">
+                                    <p class="text-gray-500 text-[10px] uppercase">Unidades Totales</p>
+                                    <h3 class="text-xl font-bold text-white">${app.data.inventory.reduce((a,b)=>a+b.stock,0)}</h3>
+                                </div>
+                                <div class="bg-venios-panel p-4 rounded-xl border border-gray-800">
+                                    <p class="text-gray-500 text-[10px] uppercase">Costo Inversión</p>
+                                    <h3 class="text-xl font-bold text-gray-400">${app.formatMoney(totalCost)}</h3>
+                                </div>
+                                <div class="bg-venios-panel p-4 rounded-xl border border-gray-800 border-b-2 border-b-venios-gold">
+                                    <p class="text-gray-500 text-[10px] uppercase">Venta Potencial</p>
+                                    <h3 class="text-xl font-bold text-venios-gold">${app.formatMoney(potentialSales)}</h3>
+                                </div>
+                            </div>
+
+                            <!-- Controls -->
+                            <div class="flex justify-between items-center mb-4">
+                                <h2 class="text-xl font-bold text-white"><i class="fas fa-boxes text-venios-gold mr-2"></i> Inventario</h2>
+                                <button onclick="app.modals.addProduct()" class="bg-venios-gold text-black font-bold px-4 py-2 rounded hover:bg-white transition flex items-center gap-2">
+                                    <i class="fas fa-plus"></i> <span class="hidden sm:inline">Nuevo Producto</span>
+                                </button>
+                            </div>
+
+                            <!-- Table -->
+                            <div class="bg-venios-panel rounded-xl border border-gray-800 overflow-hidden flex-1 flex flex-col">
+                                <div class="overflow-auto flex-1">
+                                    <table class="w-full text-left">
+                                        <thead class="bg-black text-venios-gold text-xs uppercase sticky top-0 z-10">
+                                            <tr>
+                                                <th class="p-4">Producto</th>
+                                                <th class="p-4">Categoría</th>
+                                                <th class="p-4 text-center">Stock</th>
+                                                <th class="p-4 text-right">Precio Venta</th>
+                                                <th class="p-4 text-center">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="text-sm divide-y divide-gray-800">
+                                            ${app.data.inventory.map(item => {
+                                                const lowStock = item.stock <= item.minStock;
+                                                return `
+                                                <tr class="hover:bg-gray-800 transition group">
+                                                    <td class="p-4">
+                                                        <div class="font-bold text-white text-base">${item.name}</div>
+                                                        <div class="text-xs text-gray-500">Costo: $${item.cost}</div>
+                                                    </td>
+                                                    <td class="p-4 text-gray-400">${item.category}</td>
+                                                    <td class="p-4 text-center">
+                                                        <span class="inline-block px-3 py-1 rounded font-bold ${lowStock ? 'badge-low' : 'badge-ok'}">
+                                                            ${item.stock} Unid.
+                                                        </span>
+                                                        ${lowStock ? '<div class="text-[10px] text-red-500 mt-1 animate-pulse">! Reponer</div>' : ''}
+                                                    </td>
+                                                    <td class="p-4 text-right font-mono font-bold text-white">
+                                                        ${app.formatMoney(item.price)}
+                                                    </td>
+                                                    <td class="p-4 text-center flex items-center justify-center gap-2">
+                                                        <button onclick="app.handlers.quickSale(${item.id})" title="Venta Rápida (-1 Stock)" class="bg-green-900/40 text-green-400 border border-green-800 p-2 rounded hover:bg-green-500 hover:text-black transition">
+                                                            <i class="fas fa-cash-register"></i> Vender
+                                                        </button>
+                                                        <button onclick="app.handlers.adjustStock(${item.id}, 1)" class="bg-gray-700 p-2 rounded hover:bg-gray-600 text-white"><i class="fas fa-plus"></i></button>
+                                                        <button onclick="app.handlers.deleteProduct(${item.id})" class="text-red-500 hover:text-red-300 p-2"><i class="fas fa-trash"></i></button>
+                                                    </td>
+                                                </tr>
+                                            `}).join('')}
+                                            ${app.data.inventory.length === 0 ? '<tr><td colspan="5" class="p-8 text-center text-gray-500">No hay productos. Añade el primero.</td></tr>' : ''}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                },
+
+                finances: (container) => {
+                    container.innerHTML = `
+                        <div class="flex flex-col md:flex-row gap-6 h-full">
+                            <div class="md:w-1/3 bg-venios-panel p-6 rounded-2xl border border-gray-800 h-fit">
+                                <h3 class="text-xl font-bold text-white mb-4 text-venios-gold">Nueva Transacción</h3>
+                                <form onsubmit="app.handlers.addTransaction(event)" class="space-y-4">
+                                    <div class="flex gap-2 bg-black p-1 rounded">
+                                        <label class="flex-1 cursor-pointer">
+                                            <input type="radio" name="type" value="in" checked class="peer hidden">
+                                            <div class="py-2 text-center rounded peer-checked:bg-green-600 peer-checked:text-black font-bold text-gray-500 transition">INGRESO</div>
+                                        </label>
+                                        <label class="flex-1 cursor-pointer">
+                                            <input type="radio" name="type" value="out" class="peer hidden">
+                                            <div class="py-2 text-center rounded peer-checked:bg-red-600 peer-checked:text-black font-bold text-gray-500 transition">GASTO</div>
+                                        </label>
+                                    </div>
+                                    <input type="date" id="t-date" required class="v-input w-full p-3 rounded" value="${new Date().toISOString().split('T')[0]}">
+                                    <input type="text" id="t-desc" placeholder="Descripción" required class="v-input w-full p-3 rounded">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <input type="number" id="t-amount" placeholder="Monto ($)" step="0.01" required class="v-input w-full p-3 rounded font-bold text-venios-gold">
+                                        <select id="t-method" class="v-input w-full p-3 rounded text-xs">
+                                            <option>Efectivo USD</option><option>Pago Móvil</option><option>Zelle</option><option>Punto</option>
+                                        </select>
+                                    </div>
+                                    <button type="submit" class="w-full bg-venios-gold hover:bg-venios-goldHover text-black font-black py-3 rounded uppercase tracking-wider transition">REGISTRAR</button>
+                                </form>
+                            </div>
+                            <div class="flex-1 bg-venios-panel rounded-2xl border border-gray-800 overflow-hidden flex flex-col">
+                                <div class="p-4 bg-black flex justify-between items-center border-b border-gray-800">
+                                    <span class="font-bold text-venios-gold">Libro Diario</span>
+                                    <span class="text-xs text-gray-500">Historial de movimientos</span>
+                                </div>
+                                <div class="overflow-auto flex-1">
+                                    <table class="w-full text-left">
+                                        <tbody class="text-sm">
+                                            ${app.data.transactions.slice().reverse().map(t => `
+                                                <tr class="border-b border-gray-800 hover:bg-gray-800">
+                                                    <td class="p-3 text-gray-400 text-xs">${t.date}</td>
+                                                    <td class="p-3"><div class="font-bold text-white">${t.desc}</div><div class="text-[10px] text-gray-500">${t.method}</div></td>
+                                                    <td class="p-3 text-right">
+                                                        <div class="${t.type === 'in' ? 'text-green-400' : 'text-red-400'} font-bold">${t.type === 'in' ? '+' : '-'}${app.formatMoney(t.amount)}</div>
+                                                    </td>
+                                                    <td class="p-3 text-center w-10"><button onclick="app.handlers.delTransaction(${t.id})" class="text-red-900 hover:text-red-500"><i class="fas fa-times"></i></button></td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                },
+
+                hr: (container) => {
+                    container.innerHTML = `
+                        <div class="flex h-full gap-6">
+                            <div class="w-80 bg-venios-panel flex flex-col rounded-2xl border border-gray-800">
+                                <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-black rounded-t-2xl">
+                                    <h3 class="text-venios-gold font-bold">Personal</h3>
+                                    <button onclick="app.modals.employee()" class="text-xs bg-gray-800 hover:bg-gray-700 text-white px-2 py-1 rounded"><i class="fas fa-plus"></i></button>
+                                </div>
+                                <div class="overflow-y-auto flex-1 p-2 space-y-2">
+                                    ${app.data.employees.map(e => `
+                                        <div onclick="app.views.hrDetail(${e.id})" class="p-3 rounded bg-gray-800 hover:bg-gray-700 cursor-pointer border border-transparent hover:border-venios-gold transition flex items-center gap-3">
+                                            <div class="w-10 h-10 rounded-full bg-gray-600 flex items-center justify-center font-bold text-white">${e.name.charAt(0)}</div>
+                                            <div><p class="font-bold text-white text-sm">${e.name}</p><p class="text-xs text-gray-400">${e.role}</p></div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                            <div id="hr-detail-view" class="flex-1 bg-venios-panel rounded-2xl border border-gray-800 flex items-center justify-center flex-col text-gray-500">
+                                <i class="fas fa-id-card text-5xl mb-4 text-gray-700"></i><p>Selecciona un empleado</p>
+                            </div>
+                        </div>
+                    `;
+                },
+
+                hrDetail: (id) => {
+                    const e = app.data.employees.find(emp => emp.id === id);
+                    document.getElementById('hr-detail-view').innerHTML = `
+                        <div class="w-full h-full p-8 overflow-y-auto fade-in">
+                            <div class="flex justify-between items-start mb-6 pb-6 border-b border-gray-700">
+                                <div class="flex gap-5">
+                                    <div class="w-20 h-20 rounded-full bg-venios-gold flex items-center justify-center text-3xl font-bold text-black shadow-lg">${e.name.charAt(0)}</div>
+                                    <div>
+                                        <h2 class="text-3xl font-black text-white">${e.name}</h2>
+                                        <p class="text-venios-gold font-medium uppercase tracking-wider">${e.role}</p>
+                                        <div class="mt-2 text-xs bg-gray-800 inline-block px-2 py-1 rounded text-green-400">● Activo</div>
+                                    </div>
+                                </div>
+                                <button onclick="app.handlers.deleteEmployee(${e.id})" class="text-red-500 hover:text-red-400 text-xs font-bold border border-red-900 p-2 rounded">DESPEDIR</button>
+                            </div>
+                            <div class="grid grid-cols-2 gap-8">
+                                <div class="bg-black p-4 rounded border border-gray-800">
+                                    <h4 class="text-gray-400 text-xs font-bold uppercase mb-3">Datos Financieros</h4>
+                                    <div class="flex justify-between mb-2"><span class="text-gray-500">Sueldo:</span><span class="text-white font-mono">$${e.salary_usd}</span></div>
+                                    <div class="flex justify-between mb-2"><span class="text-gray-500">En Bs:</span><span class="text-venios-gold font-mono">Bs. ${(e.salary_usd * app.data.settings.rate).toFixed(2)}</span></div>
+                                    <div class="mt-3 pt-3 border-t border-gray-800 text-xs text-gray-400">${e.pay_method}: ${e.pay_data}</div>
+                                </div>
+                                <div>
+                                    <h4 class="text-venios-gold text-xs font-bold uppercase mb-3">Notas</h4>
+                                    <p class="text-gray-400 text-sm bg-gray-900 p-3 rounded">${e.bio}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                },
+
+                payroll: (container) => {
+                    const totalUSD = app.data.employees.reduce((acc, e) => acc + (e.salary_usd || 0), 0);
+                    container.innerHTML = `
+                        <div class="max-w-4xl mx-auto">
+                            <div class="bg-venios-panel p-6 rounded-2xl border border-gray-800 mb-6 flex justify-between items-center">
+                                <div><h2 class="text-2xl font-bold text-white">Nómina</h2><p class="text-gray-400 text-xs">Pago masivo de personal</p></div>
+                                <div class="text-right"><p class="text-xs text-gray-500 uppercase">Total a Pagar</p><h3 class="text-3xl font-black text-venios-gold">${app.formatMoney(totalUSD)}</h3></div>
+                            </div>
+                            <div class="bg-venios-panel rounded-2xl border border-gray-800 overflow-hidden">
+                                <table class="w-full text-left text-sm">
+                                    <thead class="bg-black text-venios-gold text-xs uppercase"><tr><th class="p-4">Empleado</th><th class="p-4 text-right">USD</th><th class="p-4 text-right">Bs</th></tr></thead>
+                                    <tbody>
+                                        ${app.data.employees.map(e => `<tr class="border-b border-gray-800"><td class="p-4 text-white font-bold">${e.name}</td><td class="p-4 text-right text-gray-300">$${e.salary_usd}</td><td class="p-4 text-right text-venios-gold font-mono">Bs. ${(e.salary_usd * app.data.settings.rate).toFixed(2)}</td></tr>`).join('')}
+                                    </tbody>
+                                </table>
+                                <div class="p-6 bg-black border-t border-gray-800 flex justify-end">
+                                    <button onclick="app.handlers.processPayroll()" class="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-8 rounded shadow-lg transition">PAGAR NÓMINA</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                },
+
+                invoices: (container) => {
+                    container.innerHTML = `
+                        <div class="flex items-center justify-center h-full text-center">
+                            <div class="bg-venios-panel p-10 rounded-2xl border border-gray-800">
+                                <i class="fas fa-print text-venios-gold text-5xl mb-4"></i>
+                                <h3 class="text-xl font-bold text-white">Facturación</h3>
+                                <p class="text-gray-500 my-4">Genera PDFs personalizados para tus clientes.</p>
+                                <button onclick="app.toast('Generando plantilla de impresión...')" class="bg-venios-gold text-black font-bold px-6 py-2 rounded">Crear Nueva</button>
+                            </div>
+                        </div>
+                    `;
+                }
+            },
+
+            // --- HANDLERS ---
+            handlers: {
+                // Finanzas
+                addTransaction: (e) => {
+                    e.preventDefault();
+                    const amount = parseFloat(document.getElementById('t-amount').value);
+                    const type = document.querySelector('input[name="type"]:checked').value;
+                    if (!amount) return;
+                    app.data.transactions.push({
+                        id: Date.now(),
+                        date: document.getElementById('t-date').value,
+                        desc: document.getElementById('t-desc').value,
+                        amount: amount,
+                        type: type,
+                        method: document.getElementById('t-method').value
+                    });
+                    DB.save(app.data);
+                    AudioSys.play(type === 'in' ? 'cash' : 'click');
+                    app.toast("Registrado con éxito");
+                    e.target.reset();
+                    app.views.finances(document.getElementById('content-area'));
+                },
+                delTransaction: (id) => {
+                    if(confirm("¿Eliminar?")) {
+                        app.data.transactions = app.data.transactions.filter(t => t.id !== id);
+                        DB.save(app.data);
+                        app.views.finances(document.getElementById('content-area'));
+                    }
+                },
+                
+                // Inventario Handlers
+                saveProduct: (e) => {
+                    e.preventDefault();
+                    const prod = {
+                        id: Date.now(),
+                        name: document.getElementById('p-name').value,
+                        category: document.getElementById('p-cat').value,
+                        cost: parseFloat(document.getElementById('p-cost').value),
+                        price: parseFloat(document.getElementById('p-price').value),
+                        stock: parseInt(document.getElementById('p-stock').value),
+                        minStock: parseInt(document.getElementById('p-min').value)
+                    };
+                    app.data.inventory.push(prod);
+                    DB.save(app.data);
+                    document.getElementById('modal-overlay').remove();
+                    app.toast("Producto Agregado");
+                    app.nav('inventory');
+                },
+                
+                deleteProduct: (id) => {
+                    if(confirm("¿Borrar producto del inventario?")) {
+                        app.data.inventory = app.data.inventory.filter(i => i.id !== id);
+                        DB.save(app.data);
+                        app.nav('inventory');
+                    }
+                },
+
+                adjustStock: (id, amount) => {
+                    const item = app.data.inventory.find(i => i.id === id);
+                    if(item) {
+                        item.stock += amount;
+                        DB.save(app.data);
+                        app.nav('inventory');
+                    }
+                },
+
+                quickSale: (id) => {
+                    const item = app.data.inventory.find(i => i.id === id);
+                    if(item && item.stock > 0) {
+                        // 1. Reduce Stock
+                        item.stock--;
+                        
+                        // 2. Add Transaction automatically
+                        app.data.transactions.push({
+                            id: Date.now(),
+                            date: new Date().toISOString().split('T')[0],
+                            desc: `Venta: ${item.name}`,
+                            amount: item.price,
+                            type: 'in',
+                            method: 'Caja Rápida'
+                        });
+
+                        DB.save(app.data);
+                        AudioSys.play('cash');
+                        app.toast(`¡Vendido! +$${item.price}`);
+                        app.nav('inventory');
+                    } else {
+                        AudioSys.play('error');
+                        app.toast("¡No hay stock!");
+                    }
+                },
+
+                // RRHH Handlers
+                saveEmployee: (e) => {
+                    e.preventDefault();
+                    app.data.employees.push({
+                        id: Date.now(),
+                        name: document.getElementById('e-name').value,
+                        role: document.getElementById('e-role').value,
+                        salary_usd: parseFloat(document.getElementById('e-salary').value),
+                        pay_method: document.getElementById('e-method').value,
+                        pay_data: document.getElementById('e-data').value,
+                        bio: document.getElementById('e-bio').value
+                    });
+                    DB.save(app.data);
+                    document.getElementById('modal-overlay').remove();
+                    app.nav('hr');
+                },
+                deleteEmployee: (id) => {
+                    if(confirm("¿Despedir empleado?")) {
+                        app.data.employees = app.data.employees.filter(e => e.id !== id);
+                        DB.save(app.data);
+                        app.nav('hr');
+                    }
+                },
+                processPayroll: () => {
+                    if(confirm("¿Pagar Nómina Total?")) {
+                        const total = app.data.employees.reduce((acc, e) => acc + (e.salary_usd || 0), 0);
+                        app.data.transactions.push({
+                            id: Date.now(), date: new Date().toISOString().split('T')[0],
+                            desc: "Pago Nómina General", amount: total, type: 'out', method: 'Banco'
+                        });
+                        DB.save(app.data);
+                        AudioSys.play('cash');
+                        app.toast("Nómina Pagada");
+                    }
+                }
+            },
+
+            // --- MODALS ---
+            modals: {
+                addProduct: () => {
+                    const html = `
+                        <div id="modal-overlay" class="fixed inset-0 z-[80] flex items-center justify-center glass-modal fade-in p-4">
+                            <div class="bg-venios-panel w-full max-w-lg rounded-2xl border border-gray-700 shadow-2xl relative">
+                                <button onclick="document.getElementById('modal-overlay').remove()" class="absolute top-4 right-4 text-white"><i class="fas fa-times"></i></button>
+                                <div class="p-6 border-b border-gray-800"><h3 class="text-xl font-bold text-venios-gold">Nuevo Producto</h3></div>
+                                <form onsubmit="app.handlers.saveProduct(event)" class="p-6 space-y-4">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <input type="text" id="p-name" placeholder="Nombre Producto" required class="v-input p-3 rounded w-full">
+                                        <input type="text" id="p-cat" placeholder="Categoría (Ej. Camisas)" required class="v-input p-3 rounded w-full">
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <input type="number" id="p-cost" placeholder="Costo ($)" step="0.01" required class="v-input p-3 rounded w-full">
+                                        <input type="number" id="p-price" placeholder="Precio Venta ($)" step="0.01" required class="v-input p-3 rounded w-full border-venios-gold">
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <input type="number" id="p-stock" placeholder="Stock Inicial" required class="v-input p-3 rounded w-full">
+                                        <input type="number" id="p-min" placeholder="Alerta Mínimo" value="5" required class="v-input p-3 rounded w-full">
+                                    </div>
+                                    <button type="submit" class="w-full bg-venios-gold text-black font-bold py-3 rounded hover:bg-white transition">AGREGAR AL INVENTARIO</button>
+                                </form>
+                            </div>
+                        </div>
+                    `;
+                    document.body.insertAdjacentHTML('beforeend', html);
+                },
+                employee: () => {
+                    const html = `
+                        <div id="modal-overlay" class="fixed inset-0 z-[80] flex items-center justify-center glass-modal fade-in p-4">
+                            <div class="bg-venios-panel w-full max-w-lg rounded-2xl border border-gray-700 shadow-2xl relative">
+                                <button onclick="document.getElementById('modal-overlay').remove()" class="absolute top-4 right-4 text-white"><i class="fas fa-times"></i></button>
+                                <div class="p-6 border-b border-gray-800"><h3 class="text-xl font-bold text-venios-gold">Contratar Personal</h3></div>
+                                <form onsubmit="app.handlers.saveEmployee(event)" class="p-6 space-y-4">
+                                    <input type="text" id="e-name" placeholder="Nombre Completo" required class="v-input p-3 rounded w-full">
+                                    <input type="text" id="e-role" placeholder="Cargo" required class="v-input p-3 rounded w-full">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <input type="number" id="e-salary" placeholder="Sueldo Mensual ($)" required class="v-input p-3 rounded w-full">
+                                        <select id="e-method" class="v-input p-3 rounded w-full"><option>Pago Móvil</option><option>Zelle</option><option>Efectivo</option></select>
+                                    </div>
+                                    <input type="text" id="e-data" placeholder="Datos de Pago (Cédula/Telf)" class="v-input p-3 rounded w-full">
+                                    <textarea id="e-bio" placeholder="Notas adicionales" class="v-input p-3 rounded w-full h-20"></textarea>
+                                    <button type="submit" class="w-full bg-venios-gold text-black font-bold py-3 rounded">GUARDAR FICHA</button>
+                                </form>
+                            </div>
+                        </div>
+                    `;
+                    document.body.insertAdjacentHTML('beforeend', html);
+                }
+            }
+        };
+
+        // Start
+        window.addEventListener('DOMContentLoaded', app.init);
+    </script>
+</body>
+</html>
