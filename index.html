@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VENIOS | Cloud ERP (Supabase)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Montserrat', 'sans-serif'] },
+                    colors: {
+                        venios: {
+                            gold: '#D4AF37',
+                            goldHover: '#F4CF57',
+                            black: '#050505',
+                            dark: '#1C1C1C',
+                            light: '#EFEFEF',
+                            error: '#FF4D4D',
+                            success: '#10B981'
+                        }
+                    },
+                },
+            },
+        };
+    </script>
+    <style>
+        /* Scrollbar personalizado */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1C1C1C; }
+        ::-webkit-scrollbar-thumb { background: #D4AF37; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #F4CF57; }
+    </style>
+</head>
+<body class="bg-venios-dark text-white font-sans overflow-hidden">
+
+    <!-- App Container -->
+    <div id="app" class="h-screen flex flex-col">
+        <!-- Loading State -->
+        <div id="loading" class="fixed inset-0 z-50 flex items-center justify-center bg-venios-black">
+            <div class="text-center">
+                <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-venios-gold mx-auto mb-4"></div>
+                <p class="text-venios-gold animate-pulse">Conectando a Supabase...</p>
+            </div>
+        </div>
+
+        <!-- Auth UI -->
+        <div id="auth-ui" class="hidden h-full flex items-center justify-center p-4 bg-[url('https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?ixlib=rb-1.2.1&auto=format&fit=crop&w=1950&q=80')] bg-cover bg-center">
+            <div class="absolute inset-0 bg-black bg-opacity-80"></div>
+            <div class="relative w-full max-w-md bg-venios-black border border-gray-800 p-8 rounded-2xl shadow-2xl">
+                <div class="text-center mb-8">
+                    <i class="fas fa-gem text-4xl text-venios-gold mb-2"></i>
+                    <h1 class="text-3xl font-black text-white">VENIOS ERP</h1>
+                    <p class="text-gray-400">Sistema con Supabase</p>
+                </div>
+                
+                <form id="auth-form" class="space-y-5">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Correo Electrónico</label>
+                        <input type="email" id="email" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white focus:border-venios-gold focus:outline-none transition" placeholder="ejemplo@correo.com" required>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Contraseña</label>
+                        <input type="password" id="password" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white focus:border-venios-gold focus:outline-none transition" placeholder="******" required>
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="submit" id="btn-login" class="flex-1 bg-venios-gold text-black font-bold py-3 rounded-lg hover:bg-yellow-500 transition duration-200">
+                            INICIAR SESIÓN
+                        </button>
+                        <button type="button" id="btn-register" class="flex-1 bg-gray-800 text-white font-bold py-3 rounded-lg hover:bg-gray-700 transition duration-200">
+                            REGISTRARSE
+                        </button>
+                    </div>
+                    <p id="auth-error" class="text-red-500 text-xs text-center hidden"></p>
+                </form>
+            </div>
+        </div>
+
+        <!-- Main UI -->
+        <div id="main-ui" class="hidden flex h-full">
+            <!-- Sidebar -->
+            <aside class="w-20 lg:w-64 bg-venios-black flex flex-col border-r border-gray-800 shadow-xl z-20 transition-all duration-300">
+                <div class="h-20 flex items-center justify-center border-b border-gray-800">
+                    <div class="flex items-center space-x-2 text-venios-gold">
+                        <i class="fas fa-gem text-2xl"></i>
+                        <span class="text-xl font-black tracking-widest hidden lg:block">VENIOS</span>
+                    </div>
+                </div>
+
+                <nav class="flex-1 overflow-y-auto py-6 px-3 space-y-2">
+                    <!-- Admin Menu -->
+                    <div id="admin-menu" class="hidden space-y-2">
+                        <p class="px-3 text-xs font-bold text-gray-600 uppercase tracking-wider hidden lg:block">Administración</p>
+                        <button onclick="app.navigate('dashboard')" class="w-full flex items-center space-x-3 p-3 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-venios-gold transition nav-btn" data-target="dashboard">
+                            <i class="fas fa-chart-pie w-6 text-center"></i>
+                            <span class="hidden lg:inline font-medium">Dashboard</span>
+                        </button>
+                        <button onclick="app.navigate('inventory')" class="w-full flex items-center space-x-3 p-3 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-venios-gold transition nav-btn" data-target="inventory">
+                            <i class="fas fa-boxes w-6 text-center"></i>
+                            <span class="hidden lg:inline font-medium">Control Inventario</span>
+                        </button>
+                        <button onclick="app.navigate('staff')" class="w-full flex items-center space-x-3 p-3 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-venios-gold transition nav-btn" data-target="staff">
+                            <i class="fas fa-users-cog w-6 text-center"></i>
+                            <span class="hidden lg:inline font-medium">Recursos Humanos</span>
+                        </button>
+                        <button onclick="app.navigate('admin-sales')" class="w-full flex items-center space-x-3 p-3 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-venios-gold transition nav-btn" data-target="admin-sales">
+                            <i class="fas fa-cash-register w-6 text-center"></i>
+                            <span class="hidden lg:inline font-medium">Ventas Revendedores</span>
+                        </button>
+                        <button onclick="app.navigate('admin-payouts')" class="w-full flex items-center space-x-3 p-3 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-venios-gold transition nav-btn relative" data-target="admin-payouts">
+                            <i class="fas fa-hand-holding-usd w-6 text-center"></i>
+                            <span class="hidden lg:inline font-medium">Solicitudes de Pago</span>
+                            <span id="payout-badge" class="hidden absolute top-2 right-2 w-3 h-3 bg-red-500 rounded-full animate-ping"></span>
+                        </button>
+                    </div>
+
+                    <!-- Reseller Menu -->
+                    <div id="reseller-menu" class="hidden space-y-2">
+                        <p class="px-3 text-xs font-bold text-gray-600 uppercase tracking-wider hidden lg:block">Revendedor</p>
+                        <button onclick="app.navigate('catalog')" class="w-full flex items-center space-x-3 p-3 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-venios-gold transition nav-btn" data-target="catalog">
+                            <i class="fas fa-store w-6 text-center"></i>
+                            <span class="hidden lg:inline font-medium">Catálogo & Vender</span>
+                        </button>
+                        <button onclick="app.navigate('wallet')" class="w-full flex items-center space-x-3 p-3 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-venios-gold transition nav-btn" data-target="wallet">
+                            <i class="fas fa-wallet w-6 text-center"></i>
+                            <span class="hidden lg:inline font-medium">Mi Billetera</span>
+                        </button>
+                    </div>
+                </nav>
+
+                <div class="p-4 border-t border-gray-800">
+                    <div class="flex items-center space-x-3 mb-4 hidden lg:flex">
+                        <div class="w-8 h-8 rounded-full bg-venios-gold flex items-center justify-center text-black font-bold text-xs" id="user-avatar">U</div>
+                        <div class="overflow-hidden">
+                            <p class="text-xs font-bold text-white truncate" id="user-email">usuario@email.com</p>
+                            <p class="text-[10px] text-gray-500 uppercase" id="user-role">Rol</p>
+                        </div>
+                    </div>
+                    <button onclick="app.logout()" class="w-full flex items-center justify-center lg:justify-start space-x-2 bg-gray-800 hover:bg-red-900 text-gray-300 hover:text-white p-2 rounded-lg transition text-sm">
+                        <i class="fas fa-sign-out-alt"></i>
+                        <span class="hidden lg:inline">Cerrar Sesión</span>
+                    </button>
+                </div>
+            </aside>
+
+            <!-- Content Area -->
+            <main class="flex-1 bg-venios-dark overflow-y-auto relative p-6">
+                <!-- Refresh Button -->
+                <button onclick="app.reloadData()" class="absolute top-4 right-4 bg-gray-800 p-2 rounded-full hover:bg-venios-gold hover:text-black transition z-10" title="Recargar Datos">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+
+                <!-- Admin Notification Area -->
+                <div id="admin-notifications" class="mb-6 hidden"></div>
+
+                <div class="max-w-7xl mx-auto space-y-8 pb-20">
+                    
+                    <!-- ADMIN: DASHBOARD -->
+                    <div id="view-dashboard" class="view-section hidden space-y-6">
+                        <h2 class="text-3xl font-bold text-white border-l-4 border-venios-gold pl-4">Dashboard General</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div class="bg-gray-900 p-6 rounded-xl border border-gray-800">
+                                <p class="text-gray-400 text-sm">Ventas Totales (Bruto)</p>
+                                <h3 class="text-2xl font-bold text-venios-gold mt-1" id="dash-sales-total">$0.00</h3>
+                            </div>
+                            <div class="bg-gray-900 p-6 rounded-xl border border-gray-800">
+                                <p class="text-gray-400 text-sm">Inventario (Costo)</p>
+                                <h3 class="text-2xl font-bold text-blue-400 mt-1" id="dash-inv-cost">$0.00</h3>
+                            </div>
+                            <div class="bg-gray-900 p-6 rounded-xl border border-gray-800">
+                                <p class="text-gray-400 text-sm">Comisiones Pendientes</p>
+                                <h3 class="text-2xl font-bold text-red-400 mt-1" id="dash-pending-payouts">$0.00</h3>
+                            </div>
+                        </div>
+                        <div class="bg-gray-900 p-6 rounded-xl border border-gray-800 h-64">
+                            <canvas id="mainChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- ADMIN: INVENTORY -->
+                    <div id="view-inventory" class="view-section hidden space-y-6">
+                        <div class="flex justify-between items-center">
+                            <h2 class="text-3xl font-bold text-white border-l-4 border-venios-gold pl-4">Inventario</h2>
+                            <button onclick="app.openModal('add-product')" class="bg-venios-gold text-black font-bold py-2 px-4 rounded-lg hover:bg-yellow-500 transition">
+                                <i class="fas fa-plus mr-2"></i>Añadir
+                            </button>
+                        </div>
+                        <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+                            <table class="w-full text-left">
+                                <thead class="bg-black text-gray-400 text-sm uppercase">
+                                    <tr>
+                                        <th class="p-4">Producto</th>
+                                        <th class="p-4 text-right">Costo</th>
+                                        <th class="p-4 text-right">Precio</th>
+                                        <th class="p-4 text-center">Stock</th>
+                                        <th class="p-4 text-center">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="inventory-table-body" class="divide-y divide-gray-800 text-gray-300"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- ADMIN: STAFF -->
+                    <div id="view-staff" class="view-section hidden space-y-6">
+                        <div class="flex justify-between items-center">
+                            <h2 class="text-3xl font-bold text-white border-l-4 border-venios-gold pl-4">Recursos Humanos</h2>
+                            <button onclick="app.openModal('add-staff')" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-500 transition">
+                                <i class="fas fa-user-plus mr-2"></i>Nuevo Empleado
+                            </button>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="staff-grid"></div>
+                    </div>
+
+                    <!-- ADMIN: SALES MONITOR -->
+                    <div id="view-admin-sales" class="view-section hidden space-y-6">
+                        <h2 class="text-3xl font-bold text-white border-l-4 border-venios-gold pl-4">Ventas de Revendedores</h2>
+                        <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+                            <table class="w-full text-left">
+                                <thead class="bg-black text-gray-400 text-sm uppercase">
+                                    <tr>
+                                        <th class="p-4">Fecha</th>
+                                        <th class="p-4">Revendedor</th>
+                                        <th class="p-4">Producto</th>
+                                        <th class="p-4 text-center">Cant.</th>
+                                        <th class="p-4 text-right">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="admin-sales-body" class="divide-y divide-gray-800 text-gray-300"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- ADMIN: PAYOUTS -->
+                    <div id="view-admin-payouts" class="view-section hidden space-y-6">
+                        <h2 class="text-3xl font-bold text-white border-l-4 border-venios-gold pl-4">Solicitudes de Pago</h2>
+                        <p class="text-gray-400">Aprueba los pagos solicitados por los revendedores.</p>
+                        
+                        <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+                            <table class="w-full text-left">
+                                <thead class="bg-black text-gray-400 text-sm uppercase">
+                                    <tr>
+                                        <th class="p-4">Fecha</th>
+                                        <th class="p-4">Revendedor</th>
+                                        <th class="p-4 text-right">Monto</th>
+                                        <th class="p-4 text-center">Estado</th>
+                                        <th class="p-4 text-center">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="admin-payouts-body" class="divide-y divide-gray-800 text-gray-300"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- RESELLER: CATALOG & BUY -->
+                    <div id="view-catalog" class="view-section hidden space-y-6">
+                        <h2 class="text-3xl font-bold text-white border-l-4 border-venios-gold pl-4">Catálogo de Productos</h2>
+                        <p class="text-gray-400">Vende productos para ganar $2.00 por unidad.</p>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="catalog-grid"></div>
+                    </div>
+
+                    <!-- RESELLER: WALLET -->
+                    <div id="view-wallet" class="view-section hidden space-y-6">
+                        <h2 class="text-3xl font-bold text-white border-l-4 border-venios-gold pl-4">Mi Billetera</h2>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <!-- Total Units -->
+                            <div class="bg-gray-900 p-6 rounded-xl border border-gray-800 shadow-lg">
+                                <div class="flex items-center space-x-4">
+                                    <div class="p-3 bg-blue-900 bg-opacity-40 rounded-full text-blue-400"><i class="fas fa-box-open text-xl"></i></div>
+                                    <div>
+                                        <p class="text-gray-400 text-sm">Unidades Vendidas</p>
+                                        <h3 class="text-2xl font-bold text-white mt-1" id="wallet-units">0</h3>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Lifetime Earnings -->
+                            <div class="bg-gray-900 p-6 rounded-xl border border-gray-800 shadow-lg">
+                                <div class="flex items-center space-x-4">
+                                    <div class="p-3 bg-green-900 bg-opacity-40 rounded-full text-green-400"><i class="fas fa-chart-line text-xl"></i></div>
+                                    <div>
+                                        <p class="text-gray-400 text-sm">Ganancias Históricas</p>
+                                        <h3 class="text-2xl font-bold text-white mt-1" id="wallet-total-earned">$0.00</h3>
+                                        <p class="text-xs text-gray-500">($2.00 por unidad)</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Balance -->
+                            <div class="bg-gradient-to-br from-venios-gold to-yellow-600 p-6 rounded-xl shadow-lg text-black">
+                                <div class="flex justify-between items-start">
+                                    <div>
+                                        <p class="text-black font-bold text-sm opacity-70 uppercase">Saldo Disponible</p>
+                                        <h3 class="text-4xl font-black mt-2" id="wallet-balance">$0.00</h3>
+                                    </div>
+                                    <i class="fas fa-wallet text-3xl opacity-50"></i>
+                                </div>
+                                <button onclick="app.requestPayout()" id="btn-payout" disabled class="mt-4 w-full bg-black text-venios-gold font-bold py-2 rounded hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                                    SOLICITAR PAGO
+                                </button>
+                                <p id="payout-msg" class="text-xs mt-2 font-bold text-center hidden">Solicitud Pendiente</p>
+                            </div>
+                        </div>
+
+                        <div class="mt-8">
+                            <h3 class="text-xl font-bold mb-4 text-gray-300">Historial de Pagos</h3>
+                            <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+                                <table class="w-full text-left">
+                                    <thead class="bg-black text-gray-400 text-sm uppercase">
+                                        <tr>
+                                            <th class="p-4">Fecha</th>
+                                            <th class="p-4 text-right">Monto</th>
+                                            <th class="p-4 text-center">Estado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="wallet-history-body" class="divide-y divide-gray-800 text-gray-300"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- MODAL -->
+    <div id="modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black bg-opacity-80 backdrop-blur-sm p-4">
+        <div class="bg-venios-dark border border-gray-700 w-full max-w-lg rounded-xl shadow-2xl">
+            <div class="p-5 border-b border-gray-800 flex justify-between items-center">
+                <h3 id="modal-title" class="text-xl font-bold text-venios-gold">Título</h3>
+                <button onclick="app.closeModal()" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-6" id="modal-content"></div>
+        </div>
+    </div>
+
+    <script>
+        // CONFIGURACIÓN SUPABASE
+        const SUPABASE_URL = 'https://bfzhgrthxyoxasokzstv.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmemhncnRoeHlveGFzb2t6c3R2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ4ODg2MTksImV4cCI6MjA4MDQ2NDYxOX0.KUrLzEfHhttlymyt0A8yyZZfyW1DT-jthmyCrkETCDU';
+        
+        // CORREO DEL ADMINISTRADOR
+        // Cambia esto por tu correo real si quieres ser el admin
+        const ADMIN_EMAIL = 'acevedojosef14@gmail.com';
+        
+        const COMMISSION_RATE = 2.00; // $2 por producto
+        
+        let supabase;
+
+        const app = {
+            user: null,
+            role: 'reseller',
+
+            init: async () => {
+                try {
+                    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+                    
+                    supabase.auth.onAuthStateChange((event, session) => {
+                        if (session) {
+                            app.user = session.user;
+                            app.role = app.user.email === ADMIN_EMAIL ? 'admin' : 'reseller';
+                            app.renderApp();
+                        } else {
+                            app.user = null;
+                            app.renderLogin();
+                        }
+                        document.getElementById('loading').classList.add('hidden');
+                    });
+
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if(!session) document.getElementById('loading').classList.add('hidden'), app.renderLogin();
+
+                    app.setupListeners();
+
+                } catch (e) {
+                    console.error(e);
+                    alert("Error conexión Supabase");
+                }
+            },
+
+            setupListeners: () => {
+                document.getElementById('auth-form').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    app.handleAuth('login');
+                });
+                document.getElementById('btn-login').addEventListener('click', () => app.handleAuth('login'));
+                document.getElementById('btn-register').addEventListener('click', () => app.handleAuth('register'));
+            },
+
+            handleAuth: async (action) => {
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                const errorEl = document.getElementById('auth-error');
+                
+                errorEl.classList.add('hidden');
+
+                if(!email || !password) return errorEl.textContent = "Datos incompletos", errorEl.classList.remove('hidden');
+
+                try {
+                    let result;
+                    if(action === 'login') {
+                        result = await supabase.auth.signInWithPassword({ email, password });
+                    } else {
+                        result = await supabase.auth.signUp({ email, password });
+                        if(!result.error) alert("Registro exitoso. Revisa tu correo o inicia sesión.");
+                    }
+                    if(result.error) throw result.error;
+                } catch (err) {
+                    errorEl.textContent = err.message;
+                    errorEl.classList.remove('hidden');
+                }
+            },
+
+            renderLogin: () => {
+                document.getElementById('auth-ui').classList.remove('hidden');
+                document.getElementById('main-ui').classList.add('hidden');
+            },
+
+            renderApp: () => {
+                document.getElementById('auth-ui').classList.add('hidden');
+                document.getElementById('main-ui').classList.remove('hidden');
+                
+                document.getElementById('user-email').textContent = app.user.email;
+                document.getElementById('user-role').textContent = app.role.toUpperCase();
+
+                if (app.role === 'admin') {
+                    document.getElementById('admin-menu').classList.remove('hidden');
+                    document.getElementById('reseller-menu').classList.add('hidden');
+                    app.navigate('dashboard');
+                } else {
+                    document.getElementById('admin-menu').classList.add('hidden');
+                    document.getElementById('reseller-menu').classList.remove('hidden');
+                    app.navigate('catalog');
+                }
+                
+                app.reloadData();
+            },
+
+            logout: async () => {
+                await supabase.auth.signOut();
+                window.location.reload();
+            },
+
+            navigate: (viewId) => {
+                document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
+                document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('text-venios-gold', 'bg-gray-800'));
+                
+                document.getElementById(`view-${viewId}`).classList.remove('hidden');
+                
+                const btn = document.querySelector(`.nav-btn[data-target="${viewId}"]`);
+                if(btn) btn.classList.add('text-venios-gold', 'bg-gray-800');
+            },
+
+            reloadData: async () => {
+                if (app.role === 'admin') {
+                    await app.loadInventory();
+                    await app.loadStaff();
+                    await app.loadSales();
+                    await app.loadAdminPayouts();
+                    app.updateDashboard();
+                } else {
+                    await app.loadCatalog();
+                    await app.loadWallet();
+                }
+            },
+
+            // --- ADMIN LOGIC ---
+
+            loadInventory: async () => {
+                const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
+                if (!error) {
+                    const tbody = document.getElementById('inventory-table-body');
+                    tbody.innerHTML = '';
+                    data.forEach(p => {
+                        tbody.innerHTML += `
+                            <tr class="border-b border-gray-800 hover:bg-gray-800">
+                                <td class="p-4 font-bold">${p.name}</td>
+                                <td class="p-4 text-right text-gray-400">$${p.cost}</td>
+                                <td class="p-4 text-right text-venios-gold font-bold">$${p.price}</td>
+                                <td class="p-4 text-center">${p.stock}</td>
+                                <td class="p-4 text-center">
+                                    <button onclick="app.deleteItem('products', '${p.id}')" class="text-red-500 hover:text-red-300"><i class="fas fa-trash"></i></button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                }
+            },
+
+            loadStaff: async () => {
+                const { data } = await supabase.from('staff').select('*');
+                const grid = document.getElementById('staff-grid');
+                grid.innerHTML = '';
+                if(data) {
+                    data.forEach(s => {
+                        grid.innerHTML += `
+                            <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 relative hover:border-venios-gold transition">
+                                <button onclick="app.deleteItem('staff', '${s.id}')" class="absolute top-4 right-4 text-gray-600 hover:text-red-500"><i class="fas fa-trash"></i></button>
+                                <h4 class="font-bold text-lg">${s.name}</h4>
+                                <p class="text-venios-gold text-sm uppercase font-bold mb-2">${s.role}</p>
+                                <div class="text-sm text-gray-400">Sueldo: $${s.salary}</div>
+                            </div>
+                        `;
+                    });
+                }
+            },
+
+            loadSales: async () => {
+                const { data } = await supabase.from('sales').select('*').order('created_at', { ascending: false });
+                const tbody = document.getElementById('admin-sales-body');
+                tbody.innerHTML = '';
+                let total = 0;
+                if(data) {
+                    data.forEach(s => {
+                        total += Number(s.total);
+                        tbody.innerHTML += `
+                            <tr class="border-b border-gray-800">
+                                <td class="p-4 text-gray-400 text-sm">${new Date(s.created_at).toLocaleDateString()}</td>
+                                <td class="p-4">${s.reseller_email}</td>
+                                <td class="p-4">${s.product_name}</td>
+                                <td class="p-4 text-center">${s.quantity}</td>
+                                <td class="p-4 text-right text-green-400">$${s.total}</td>
+                            </tr>
+                        `;
+                    });
+                }
+                return { total, count: data ? data.length : 0 };
+            },
+
+            loadAdminPayouts: async () => {
+                const { data } = await supabase.from('payout_requests').select('*').order('created_at', { ascending: false });
+                const tbody = document.getElementById('admin-payouts-body');
+                const notifArea = document.getElementById('admin-notifications');
+                const badge = document.getElementById('payout-badge');
+                
+                tbody.innerHTML = '';
+                notifArea.innerHTML = '';
+                notifArea.classList.add('hidden');
+                badge.classList.add('hidden');
+                
+                let pendingCount = 0;
+
+                if (data) {
+                    data.forEach(req => {
+                        if (req.status === 'PENDIENTE') pendingCount++;
+                        
+                        const isPending = req.status === 'PENDIENTE';
+                        const statusClass = isPending ? 'bg-yellow-900 text-yellow-500' : 'bg-green-900 text-green-500';
+                        
+                        tbody.innerHTML += `
+                            <tr class="border-b border-gray-800">
+                                <td class="p-4 text-gray-400 text-sm">${new Date(req.created_at).toLocaleDateString()}</td>
+                                <td class="p-4 font-bold">${req.reseller_email}</td>
+                                <td class="p-4 text-right text-venios-gold font-bold">$${req.amount}</td>
+                                <td class="p-4 text-center"><span class="px-2 py-1 rounded text-xs font-bold ${statusClass}">${req.status}</span></td>
+                                <td class="p-4 text-center">
+                                    ${isPending ? `<button onclick="app.payReseller('${req.id}')" class="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-xs">PAGAR</button>` : '<i class="fas fa-check text-green-500"></i>'}
+                                </td>
+                            </tr>
+                        `;
+                    });
+
+                    // Notificaciones
+                    if(pendingCount > 0) {
+                        badge.classList.remove('hidden');
+                        notifArea.classList.remove('hidden');
+                        notifArea.innerHTML = `
+                            <div class="bg-yellow-900 bg-opacity-30 border border-yellow-700 text-yellow-400 p-4 rounded-lg flex items-center justify-between">
+                                <span><i class="fas fa-exclamation-circle mr-2"></i> Tienes <b>${pendingCount}</b> solicitudes de pago pendientes.</span>
+                                <button onclick="app.navigate('admin-payouts')" class="underline font-bold hover:text-white">Ver</button>
+                            </div>
+                        `;
+                    }
+                }
+                return pendingCount;
+            },
+
+            payReseller: async (id) => {
+                if(!confirm("¿Confirmar que has realizado este pago?")) return;
+                const { error } = await supabase.from('payout_requests').update({ status: 'PAGADO' }).eq('id', id);
+                if(!error) app.reloadData(); else alert("Error al actualizar pago: " + error.message);
+            },
+
+            updateDashboard: async () => {
+                const salesData = await app.loadSales();
+                const { data: prods } = await supabase.from('products').select('cost, stock');
+                const pendingPayouts = await app.loadAdminPayouts();
+                
+                const totalInvCost = prods ? prods.reduce((acc, p) => acc + (p.cost * p.stock), 0) : 0;
+
+                document.getElementById('dash-sales-total').textContent = `$${salesData.total.toLocaleString()}`;
+                document.getElementById('dash-inv-cost').textContent = `$${totalInvCost.toLocaleString()}`;
+                document.getElementById('dash-pending-payouts').textContent = pendingPayouts;
+                
+                // Chart
+                const ctx = document.getElementById('mainChart').getContext('2d');
+                if(app.chart) app.chart.destroy();
+                app.chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May'],
+                        datasets: [{
+                            label: 'Ventas',
+                            data: [1000, 2500, 1800, salesData.total, salesData.total * 1.2],
+                            borderColor: '#D4AF37',
+                            tension: 0.4
+                        }]
+                    },
+                    options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { color: 'white' } } } }
+                });
+            },
+
+            // --- RESELLER LOGIC ---
+
+            loadCatalog: async () => {
+                const { data, error } = await supabase.from('products').select('*').gt('stock', 0);
+                if (!error) {
+                    const grid = document.getElementById('catalog-grid');
+                    grid.innerHTML = '';
+                    data.forEach(p => {
+                        grid.innerHTML += `
+                            <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden group hover:border-venios-gold transition">
+                                <div class="h-32 bg-gradient-to-br from-gray-800 to-black flex items-center justify-center">
+                                    <i class="fas fa-box text-5xl text-gray-700 group-hover:text-venios-gold transition"></i>
+                                </div>
+                                <div class="p-5">
+                                    <div class="flex justify-between items-start mb-2">
+                                        <h3 class="font-bold text-lg">${p.name}</h3>
+                                        <span class="text-venios-gold font-bold text-xl">$${p.price}</span>
+                                    </div>
+                                    <p class="text-gray-500 text-sm mb-4 truncate">${p.description || ''}</p>
+                                    <div class="flex justify-between items-center text-xs text-gray-400 mb-4">
+                                        <span>Stock: ${p.stock}</span>
+                                        <span class="text-green-500">Ganas: $2.00/uni</span>
+                                    </div>
+                                    <button onclick="app.makeSale('${p.id}', '${p.name}', ${p.price}, ${p.stock})" class="w-full bg-venios-gold text-black font-bold py-2 rounded hover:bg-white transition">VENDER</button>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+            },
+
+            loadWallet: async () => {
+                if(!app.user) return;
+                const myEmail = app.user.email;
+                
+                // 1. Obtener mis ventas
+                const { data: sales } = await supabase.from('sales').select('quantity').eq('reseller_email', myEmail);
+                const totalUnits = sales ? sales.reduce((acc, s) => acc + Number(s.quantity), 0) : 0;
+                const totalEarned = totalUnits * COMMISSION_RATE;
+
+                // 2. Obtener mis solicitudes de pago
+                const { data: requests } = await supabase.from('payout_requests').select('*').eq('reseller_email', myEmail).order('created_at', {ascending: false});
+                
+                let totalRequested = 0;
+                let hasPending = false;
+                const historyBody = document.getElementById('wallet-history-body');
+                historyBody.innerHTML = '';
+
+                if (requests) {
+                    requests.forEach(req => {
+                        totalRequested += Number(req.amount);
+                        if(req.status === 'PENDIENTE') hasPending = true;
+                        
+                        const statusColor = req.status === 'PENDIENTE' ? 'text-yellow-500' : 'text-green-500';
+                        historyBody.innerHTML += `
+                            <tr class="border-b border-gray-800">
+                                <td class="p-4 text-sm text-gray-400">${new Date(req.created_at).toLocaleDateString()}</td>
+                                <td class="p-4 text-right font-bold text-white">$${req.amount}</td>
+                                <td class="p-4 text-center font-bold text-xs ${statusColor}">${req.status}</td>
+                            </tr>
+                        `;
+                    });
+                }
+
+                const currentBalance = totalEarned - totalRequested;
+
+                // Actualizar UI
+                document.getElementById('wallet-units').textContent = totalUnits;
+                document.getElementById('wallet-total-earned').textContent = `$${totalEarned.toFixed(2)}`;
+                document.getElementById('wallet-balance').textContent = `$${currentBalance.toFixed(2)}`;
+                
+                const btnPayout = document.getElementById('btn-payout');
+                const msgPayout = document.getElementById('payout-msg');
+                
+                if (hasPending) {
+                    btnPayout.disabled = true;
+                    btnPayout.classList.add('opacity-50', 'cursor-not-allowed');
+                    btnPayout.textContent = "SOLICITUD EN PROCESO";
+                    msgPayout.classList.remove('hidden');
+                } else if (currentBalance < 2) { 
+                    btnPayout.disabled = true;
+                    btnPayout.classList.add('opacity-50', 'cursor-not-allowed');
+                    btnPayout.textContent = "SALDO INSUFICIENTE";
+                } else {
+                    btnPayout.disabled = false;
+                    btnPayout.classList.remove('opacity-50', 'cursor-not-allowed');
+                    btnPayout.textContent = "SOLICITAR PAGO";
+                    msgPayout.classList.add('hidden');
+                }
+            },
+
+            makeSale: async (id, name, price, currentStock) => {
+                if(!app.user) return alert("Debes iniciar sesión");
+                const qty = prompt(`¿Cuántas unidades de ${name} vendiste?`);
+                if (!qty || isNaN(qty) || qty <= 0 || qty > currentStock) return alert("Cantidad inválida o stock insuficiente");
+
+                const total = price * qty;
+                
+                try {
+                    const { error: sErr } = await supabase.from('sales').insert({
+                        reseller_email: app.user.email,
+                        product_name: name,
+                        quantity: qty,
+                        total: total
+                    });
+                    if (sErr) throw sErr;
+
+                    const { error: pErr } = await supabase.from('products').update({ stock: currentStock - qty }).eq('id', id);
+                    if (pErr) throw pErr;
+
+                    alert(`¡Venta registrada! Has ganado $${(qty * COMMISSION_RATE).toFixed(2)}`);
+                    app.reloadData();
+
+                } catch (e) {
+                    console.error(e);
+                    alert("Error en venta: " + e.message);
+                }
+            },
+
+            requestPayout: async () => {
+                const balanceText = document.getElementById('wallet-balance').textContent.replace('$', '');
+                const balance = parseFloat(balanceText);
+
+                if (balance <= 0) return alert("No tienes saldo disponible.");
+                
+                if(!confirm(`¿Solicitar pago por $${balance}?`)) return;
+
+                try {
+                    const { error } = await supabase.from('payout_requests').insert({
+                        reseller_email: app.user.email,
+                        amount: balance,
+                        status: 'PENDIENTE'
+                    });
+                    
+                    if(error) throw error;
+                    
+                    alert("Solicitud enviada al administrador.");
+                    app.reloadData();
+
+                } catch (e) {
+                    console.error(e);
+                    alert("Error al solicitar pago");
+                }
+            },
+
+            // --- GENERAL UTILS ---
+
+            openModal: (type) => {
+                const modal = document.getElementById('modal');
+                const content = document.getElementById('modal-content');
+                const title = document.getElementById('modal-title');
+                modal.classList.remove('hidden');
+
+                if (type === 'add-product') {
+                    title.textContent = "Nuevo Producto";
+                    content.innerHTML = `
+                        <form onsubmit="app.saveProduct(event)" class="space-y-4">
+                            <input type="text" id="p-name" placeholder="Nombre" class="w-full bg-gray-800 border-none rounded p-3 text-white" required>
+                            <div class="grid grid-cols-2 gap-4">
+                                <input type="number" id="p-cost" placeholder="Costo ($)" class="bg-gray-800 border-none rounded p-3 text-white" required>
+                                <input type="number" id="p-price" placeholder="Precio ($)" class="bg-gray-800 border-none rounded p-3 text-white" required>
+                            </div>
+                            <input type="number" id="p-stock" placeholder="Stock Inicial" class="w-full bg-gray-800 border-none rounded p-3 text-white" required>
+                            <button class="w-full bg-venios-gold text-black font-bold py-3 rounded">GUARDAR</button>
+                        </form>
+                    `;
+                } else if (type === 'add-staff') {
+                    title.textContent = "Nuevo Empleado";
+                    content.innerHTML = `
+                        <form onsubmit="app.saveStaff(event)" class="space-y-4">
+                            <input type="text" id="s-name" placeholder="Nombre Completo" class="w-full bg-gray-800 border-none rounded p-3 text-white" required>
+                            <input type="text" id="s-role" placeholder="Cargo" class="w-full bg-gray-800 border-none rounded p-3 text-white" required>
+                            <input type="number" id="s-salary" placeholder="Sueldo" class="w-full bg-gray-800 border-none rounded p-3 text-white" required>
+                            <button class="w-full bg-blue-600 text-white font-bold py-3 rounded">REGISTRAR</button>
+                        </form>
+                    `;
+                }
+            },
+
+            closeModal: () => document.getElementById('modal').classList.add('hidden'),
+
+            saveProduct: async (e) => {
+                e.preventDefault();
+                const data = {
+                    name: document.getElementById('p-name').value,
+                    cost: document.getElementById('p-cost').value,
+                    price: document.getElementById('p-price').value,
+                    stock: document.getElementById('p-stock').value
+                };
+                const { error } = await supabase.from('products').insert(data);
+                if(!error) { app.closeModal(); app.reloadData(); } else { alert("Error: " + error.message); }
+            },
+
+            saveStaff: async (e) => {
+                e.preventDefault();
+                const data = {
+                    name: document.getElementById('s-name').value,
+                    role: document.getElementById('s-role').value,
+                    salary: document.getElementById('s-salary').value
+                };
+                const { error } = await supabase.from('staff').insert(data);
+                if(!error) { app.closeModal(); app.reloadData(); } else { alert("Error: " + error.message); }
+            },
+
+            deleteItem: async (table, id) => {
+                if(confirm("¿Eliminar?")) {
+                    await supabase.from(table).delete().eq('id', id);
+                    app.reloadData();
+                }
+            }
+        };
+
+        window.onload = app.init;
+    </script>
+</body>
+</html>
